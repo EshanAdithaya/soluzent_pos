@@ -7,16 +7,23 @@ import {
   ManyToOne,
   JoinColumn,
   OneToMany,
+  Index,
 } from 'typeorm';
 import { Category } from './category.entity';
 import { OrderItem } from './order-item.entity';
 
 @Entity('products')
+@Index(['name'])
+@Index(['barcode'])
+@Index(['categoryId'])
+@Index(['stockQuantity', 'minStockLevel'])
+@Index(['isActive'])
 export class Product {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column()
+  @Index()
   name: string;
 
   @Column({ type: 'text', nullable: true })
@@ -32,6 +39,7 @@ export class Product {
   barcode: string;
 
   @Column({ name: 'stock_quantity', default: 0 })
+  @Index()
   stockQuantity: number;
 
   @Column({ name: 'min_stock_level', default: 5 })

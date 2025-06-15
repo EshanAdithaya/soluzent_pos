@@ -53,7 +53,13 @@ export class AuthController {
     },
   })
   async login(@Body() loginDto: LoginDto): Promise<AuthResponseDto> {
-    return this.authService.login(loginDto);
+    const clientIP = 'unknown'; // In a real app, extract from req.ip
+    console.log(`🔑 Login request received for username: ${loginDto.username} from IP: ${clientIP}`);
+    
+    const result = await this.authService.login(loginDto);
+    
+    console.log(`✅ Login successful - User: ${result.user.username} (${result.user.role})`);
+    return result;
   }
 
   @Get('profile')
@@ -72,6 +78,7 @@ export class AuthController {
     description: 'Unauthorized - Invalid or expired token',
   })
   async getProfile(@CurrentUser() user: Employee): Promise<UserProfileDto> {
+    console.log(`👤 Profile request for user: ${user.username} (ID: ${user.id})`);
     return this.authService.getProfile(user.id);
   }
 
@@ -91,7 +98,8 @@ export class AuthController {
       },
     },
   })
-  async logout(): Promise<{ message: string }> {
+  async logout(@CurrentUser() user: Employee): Promise<{ message: string }> {
+    console.log(`👋 User logout: ${user.username} (ID: ${user.id}) at ${new Date().toISOString()}`);
     return { message: 'Logout successful' };
   }
 }

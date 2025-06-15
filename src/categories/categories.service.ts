@@ -50,17 +50,24 @@ export class CategoriesService {
   }
 
   async findAll(includeInactive = false): Promise<CategoryResponseDto[]> {
+    const startTime = Date.now();
+    console.log(`📂 Loading categories with products (includeInactive: ${includeInactive})`);
+    
     const queryBuilder = this.categoryRepository
       .createQueryBuilder('category')
-      .leftJoinAndSelect('category.products', 'products')
+      .leftJoinAndSelect('category.products', 'products', 'products.isActive = :productActive')
       .orderBy('category.displayOrder', 'ASC')
-      .addOrderBy('category.name', 'ASC');
+      .addOrderBy('category.name', 'ASC')
+      .setParameter('productActive', true);
 
     if (!includeInactive) {
       queryBuilder.where('category.isActive = :isActive', { isActive: true });
     }
 
     const categories = await queryBuilder.getMany();
+    const processingTime = Date.now() - startTime;
+    
+    console.log(`✅ Loaded ${categories.length} categories with optimized product loading in ${processingTime}ms`);
     return categories.map(CategoryResponseDto.fromCategory);
   }
 

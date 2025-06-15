@@ -36,80 +36,128 @@ export class OrdersService {
 
   async create(createOrderDto: CreateOrderDto, employeeId: string): Promise<OrderResponseDto> {
     const { orderItems, paymentDetails, taxRate, discountAmount = 0, ...orderData } = createOrderDto;
+    const startTime = Date.now();
+    
+    console.log(`🛒 Starting order creation for employee: ${employeeId}`);
+    console.log(`📋 Order items count: ${orderItems.length}`);
+    console.log(`💳 Payment methods: ${paymentDetails.map(p => p.paymentMethod).join(', ')}`);
 
     return this.orderRepository.manager.transaction(async (transactionalEntityManager) => {
-      let subtotal = 0;
-      const orderItemsToCreate: Partial<OrderItem>[] = [];
+      try {
+        let subtotal = 0;
+        const orderItemsToCreate: Partial<OrderItem>[] = [];
+        const stockUpdates: { productId: string; oldStock: number; newStock: number }[] = [];
 
-      for (const item of orderItems) {
-        const product = await transactionalEntityManager.findOne(Product, {
-          where: { id: item.productId, isActive: true },
-        });
+        console.log(`🔍 Validating ${orderItems.length} products and stock levels`);
+        
+        for (const item of orderItems) {
+          const product = await transactionalEntityManager.findOne(Product, {
+            where: { id: item.productId, isActive: true },
+          });
 
-        if (!product) {
-          throw new NotFoundException(`Product with ID ${item.productId} not found`);
+          if (!product) {
+            console.error(`❌ Product not found: ${item.productId}`);
+            throw new NotFoundException(`Product with ID ${item.productId} not found`);
+          }
+
+          if (product.stockQuantity < item.quantity) {
+            console.error(`❌ Insufficient stock for ${product.name}: Available ${product.stockQuantity}, Requested ${item.quantity}`);
+            throw new BadRequestException(
+              `Insufficient stock for product ${product.name}. Available: ${product.stockQuantity}, Requested: ${item.quantity}`
+            );
+          }
+
+          const unitPrice = product.price;
+          const totalPrice = unitPrice * item.quantity;
+          subtotal += totalPrice;
+
+          console.log(`✅ Product validated: ${product.name} (${item.quantity}x$${unitPrice} = $${totalPrice})`);
+
+          orderItemsToCreate.push({
+            productId: item.productId,
+            quantity: item.quantity,
+            unitPrice,
+            totalPrice,
+            notes: item.notes,
+          });
+
+          stockUpdates.push({
+            productId: item.productId,
+            oldStock: product.stockQuantity,
+            newStock: product.stockQuantity - item.quantity
+          });
+
+          product.stockQuantity -= item.quantity;
+          await transactionalEntityManager.save(Product, product);
         }
 
-        if (product.stockQuantity < item.quantity) {
-          throw new BadRequestException(
-            `Insufficient stock for product ${product.name}. Available: ${product.stockQuantity}, Requested: ${item.quantity}`
-          );
+        console.log(`💰 Order totals - Subtotal: $${subtotal}, Tax Rate: ${taxRate}%`);
+
+        const taxAmount = (subtotal * taxRate) / 100;
+        const totalAmount = subtotal + taxAmount - discountAmount;
+
+        const totalPaymentAmount = paymentDetails.reduce((sum, payment) => sum + payment.amount, 0);
+        
+        if (Math.abs(totalPaymentAmount - totalAmount) > 0.01) {
+          console.error(`❌ Payment mismatch: Total $${totalAmount}, Payment $${totalPaymentAmount}`);
+          throw new BadRequestException('Payment amount does not match order total');
         }
 
-        const unitPrice = product.price;
-        const totalPrice = unitPrice * item.quantity;
-        subtotal += totalPrice;
+        console.log(`💵 Payment validation passed: Total $${totalAmount}`);
 
-        orderItemsToCreate.push({
-          productId: item.productId,
-          quantity: item.quantity,
-          unitPrice,
-          totalPrice,
-          notes: item.notes,
+        const order = transactionalEntityManager.create(Order, {
+          employeeId,
+          subtotal,
+          taxAmount,
+          taxRate,
+          discountAmount,
+          totalAmount,
+          ...orderData,
         });
 
-        product.stockQuantity -= item.quantity;
-        await transactionalEntityManager.save(Product, product);
-      }
+        const savedOrder = await transactionalEntityManager.save(Order, order);
+        console.log(`📝 Order created with ID: ${savedOrder.id}`);
 
-      const taxAmount = (subtotal * taxRate) / 100;
-      const totalAmount = subtotal + taxAmount - discountAmount;
+        // Create order items
+        for (const orderItemData of orderItemsToCreate) {
+          const orderItem = transactionalEntityManager.create(OrderItem, {
+            orderId: savedOrder.id,
+            ...orderItemData,
+          });
+          await transactionalEntityManager.save(OrderItem, orderItem);
+        }
+        console.log(`📦 Created ${orderItemsToCreate.length} order items`);
 
-      const totalPaymentAmount = paymentDetails.reduce((sum, payment) => sum + payment.amount, 0);
-      
-      if (Math.abs(totalPaymentAmount - totalAmount) > 0.01) {
-        throw new BadRequestException('Payment amount does not match order total');
-      }
+        // Create payment details
+        for (const paymentData of paymentDetails) {
+          const paymentDetail = transactionalEntityManager.create(PaymentDetail, {
+            orderId: savedOrder.id,
+            ...paymentData,
+          });
+          await transactionalEntityManager.save(PaymentDetail, paymentDetail);
+        }
+        console.log(`💳 Created ${paymentDetails.length} payment records`);
 
-      const order = transactionalEntityManager.create(Order, {
-        employeeId,
-        subtotal,
-        taxAmount,
-        taxRate,
-        discountAmount,
-        totalAmount,
-        ...orderData,
-      });
-
-      const savedOrder = await transactionalEntityManager.save(Order, order);
-
-      for (const orderItemData of orderItemsToCreate) {
-        const orderItem = transactionalEntityManager.create(OrderItem, {
-          orderId: savedOrder.id,
-          ...orderItemData,
+        // Log stock updates
+        stockUpdates.forEach(update => {
+          console.log(`📊 Stock updated for product ${update.productId}: ${update.oldStock} → ${update.newStock}`);
         });
-        await transactionalEntityManager.save(OrderItem, orderItem);
-      }
 
-      for (const paymentData of paymentDetails) {
-        const paymentDetail = transactionalEntityManager.create(PaymentDetail, {
-          orderId: savedOrder.id,
-          ...paymentData,
-        });
-        await transactionalEntityManager.save(PaymentDetail, paymentDetail);
+        const processingTime = Date.now() - startTime;
+        console.log(`✅ Order creation completed in ${processingTime}ms`);
+        
+        return this.findOne(savedOrder.id);
+        
+      } catch (error) {
+        const processingTime = Date.now() - startTime;
+        console.error(`❌ Order creation failed after ${processingTime}ms:`, error.message);
+        
+        // Re-throw the error to trigger transaction rollback
+        throw error;
       }
-
-      return this.findOne(savedOrder.id);
+    }).catch(error => {
+      console.error(`🔄 Transaction rolled back for employee ${employeeId}:`, error.message);
+      throw error;
     });
   }
 

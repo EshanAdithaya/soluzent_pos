@@ -10,6 +10,10 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const reflector = app.get(Reflector);
 
+  // Note: For production, install and configure helmet, compression, and express rate limiting
+  console.log('🛡️  Security middleware configuration needed (install helmet, compression)');
+  console.log('📏 Request size limits can be configured via NestJS built-in options');
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -60,10 +64,17 @@ async function bootstrap() {
   });
 
   const port = configService.get('PORT') || 3000;
+  const startTime = Date.now();
+  
   await app.listen(port);
   
+  const bootTime = Date.now() - startTime;
   console.log(`🚀 POS API running on http://localhost:${port}`);
   console.log(`📚 Swagger documentation: http://localhost:${port}/api`);
+  console.log(`⚡ Application started in ${bootTime}ms`);
+  console.log(`🔧 Environment: ${configService.get('NODE_ENV') || 'development'}`);
+  console.log(`💾 Database sync: ${configService.get('DATABASE_SYNC') === 'true' ? 'enabled' : 'disabled'}`);
+  console.log(`📊 System monitoring enabled - tracking user activity and performance`);
 }
 
 bootstrap();

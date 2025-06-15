@@ -18,17 +18,24 @@ export class AuthService {
 
   async login(loginDto: LoginDto): Promise<AuthResponseDto> {
     const { username, password } = loginDto;
+    const loginStartTime = Date.now();
+    
+    console.log(`🔐 Login attempt for username: ${username} at ${new Date().toISOString()}`);
 
     const employee = await this.employeeRepository.findOne({
       where: { username, isActive: true },
     });
 
     if (!employee) {
+      console.warn(`❌ Failed login attempt - User not found: ${username}`);
+      console.warn(`🕐 Login attempt duration: ${Date.now() - loginStartTime}ms`);
       throw new UnauthorizedException('Invalid credentials');
     }
 
     const isPasswordValid = await bcrypt.compare(password, employee.password);
     if (!isPasswordValid) {
+      console.warn(`❌ Failed login attempt - Invalid password for user: ${username} (ID: ${employee.id})`);
+      console.warn(`🕐 Login attempt duration: ${Date.now() - loginStartTime}ms`);
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -39,6 +46,11 @@ export class AuthService {
     };
 
     const accessToken = this.jwtService.sign(payload);
+    
+    const loginDuration = Date.now() - loginStartTime;
+    console.log(`✅ Successful login for ${username} (ID: ${employee.id}, Role: ${employee.role})`);
+    console.log(`🕐 Login process completed in ${loginDuration}ms`);
+    console.log(`🎫 JWT token generated with expiry: 24 hours`);
 
     return {
       accessToken,

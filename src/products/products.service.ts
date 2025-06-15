@@ -31,13 +31,17 @@ export class ProductsService {
   ) {}
 
   async create(createProductDto: CreateProductDto): Promise<ProductResponseDto> {
+    const startTime = Date.now();
     const { categoryId, barcode, ...productData } = createProductDto;
+    
+    console.log(`📦 Creating new product: ${productData.name} in category: ${categoryId}`);
 
     const category = await this.categoryRepository.findOne({
       where: { id: categoryId, isActive: true },
     });
 
     if (!category) {
+      console.error(`❌ Category not found or inactive: ${categoryId}`);
       throw new NotFoundException('Category not found or inactive');
     }
 
@@ -47,6 +51,7 @@ export class ProductsService {
       });
 
       if (existingProduct) {
+        console.error(`❌ Duplicate barcode attempted: ${barcode}`);
         throw new ConflictException('Product with this barcode already exists');
       }
     }
@@ -58,6 +63,10 @@ export class ProductsService {
     });
 
     const savedProduct = await this.productRepository.save(product);
+    const processingTime = Date.now() - startTime;
+    
+    console.log(`✅ Product created successfully: ${savedProduct.name} (ID: ${savedProduct.id}) in ${processingTime}ms`);
+    
     return this.findOne(savedProduct.id);
   }
 
@@ -223,6 +232,9 @@ export class ProductsService {
   }
 
   async getLowStockProducts(): Promise<ProductResponseDto[]> {
+    const startTime = Date.now();
+    console.log(`📊 Checking low stock products`);
+    
     const products = await this.productRepository
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.category', 'category')
@@ -230,6 +242,15 @@ export class ProductsService {
       .andWhere('product.stockQuantity <= product.minStockLevel')
       .orderBy('product.stockQuantity', 'ASC')
       .getMany();
+
+    const processingTime = Date.now() - startTime;
+    console.log(`⚠️  Found ${products.length} low stock products in ${processingTime}ms`);
+    
+    if (products.length > 0) {
+      products.forEach(product => {
+        console.log(`📉 Low stock alert: ${product.name} - Stock: ${product.stockQuantity}, Min: ${product.minStockLevel}`);
+      });
+    }
 
     return products.map(ProductResponseDto.fromProduct);
   }

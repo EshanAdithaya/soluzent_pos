@@ -18,12 +18,31 @@ import { RolesGuard } from '../common/guards/roles.guard';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET'),
-        signOptions: {
-          expiresIn: configService.get<string>('JWT_EXPIRES_IN'),
-        },
-      }),
+      useFactory: async (configService: ConfigService) => {
+        const jwtSecret = configService.get<string>('JWT_SECRET');
+        const jwtExpiresIn = configService.get<string>('JWT_EXPIRES_IN') || '24h';
+        
+        // Validate JWT secret
+        if (!jwtSecret) {
+          console.error('❌ SECURITY ERROR: JWT_SECRET environment variable is not set');
+          throw new Error('JWT_SECRET environment variable is required');
+        }
+        
+        if (jwtSecret.length < 32) {
+          console.error('❌ SECURITY WARNING: JWT_SECRET should be at least 32 characters long');
+          console.error(`Current length: ${jwtSecret.length} characters`);
+        }
+        
+        console.log('🔐 JWT Configuration loaded successfully');
+        console.log(`🕐 JWT Token expires in: ${jwtExpiresIn}`);
+        
+        return {
+          secret: jwtSecret,
+          signOptions: {
+            expiresIn: jwtExpiresIn,
+          },
+        };
+      },
       inject: [ConfigService],
     }),
   ],

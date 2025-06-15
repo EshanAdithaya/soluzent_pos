@@ -8,6 +8,7 @@ import {
   JoinColumn,
   OneToMany,
   BeforeInsert,
+  Index,
 } from 'typeorm';
 import { Employee } from './employee.entity';
 import { OrderItem } from './order-item.entity';
@@ -26,6 +27,10 @@ export enum PaymentStatus {
 }
 
 @Entity('orders')
+@Index(['createdAt'])
+@Index(['employeeId', 'createdAt'])
+@Index(['paymentStatus'])
+@Index(['paymentMethod'])
 export class Order {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -34,6 +39,7 @@ export class Order {
   orderNumber: string;
 
   @Column({ name: 'employee_id' })
+  @Index()
   employeeId: string;
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
