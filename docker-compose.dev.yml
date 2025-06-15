@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: pos_postgres_dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pos_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    networks:
+      - pos_dev_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: pos_redis_dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    networks:
+      - pos_dev_network
+
+volumes:
+  postgres_dev_data:
+  redis_dev_data:
+
+networks:
+  pos_dev_network:
+    driver: bridge
