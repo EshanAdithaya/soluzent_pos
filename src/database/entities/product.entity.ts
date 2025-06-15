@@ -64,6 +64,9 @@ export class Product {
   }
 
   get profitMargin(): number {
+    if (this.price === 0) {
+      return 0;
+    }
     return ((this.price - this.costPrice) / this.price) * 100;
   }
 }
