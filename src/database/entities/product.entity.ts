@@ -13,7 +13,6 @@ import { Category } from './category.entity';
 import { OrderItem } from './order-item.entity';
 
 @Entity('products')
-@Index(['name'])
 @Index(['barcode'])
 @Index(['categoryId'])
 @Index(['stockQuantity', 'minStockLevel'])

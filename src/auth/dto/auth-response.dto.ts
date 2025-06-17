@@ -1,31 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Employee, EmployeeRole } from '../../database/entities';
 
-export class AuthResponseDto {
-  @ApiProperty({
-    description: 'JWT access token',
-    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-  })
-  accessToken: string;
-
-  @ApiProperty({
-    description: 'Token type',
-    example: 'bearer',
-  })
-  tokenType: string;
-
-  @ApiProperty({
-    description: 'Token expiration time in seconds',
-    example: 86400,
-  })
-  expiresIn: number;
-
-  @ApiProperty({
-    description: 'User information',
-  })
-  user: UserProfileDto;
-}
-
 export class UserProfileDto {
   @ApiProperty({
     description: 'User ID',
@@ -75,7 +50,6 @@ export class UserProfileDto {
     example: true,
   })
   isActive: boolean;
-
   static fromEmployee(employee: Employee): UserProfileDto {
     return {
       id: employee.id,
@@ -88,4 +62,29 @@ export class UserProfileDto {
       isActive: employee.isActive,
     };
   }
+}
+
+export class AuthResponseDto {
+  @ApiProperty({
+    description: 'JWT access token',
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+  })
+  accessToken: string;
+
+  @ApiProperty({
+    description: 'Token type',
+    example: 'bearer',
+  })
+  tokenType: string;
+
+  @ApiProperty({
+    description: 'Token expiration time in seconds',
+    example: 86400,
+  })
+  expiresIn: number;
+
+  @ApiProperty({
+    description: 'User information',
+  })
+  user: UserProfileDto;
 }
